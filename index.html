@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سیستم باربری</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Tahoma', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            direction: rtl;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 30px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .user-type-selector {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .user-type-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .user-type-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+            direction: rtl;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.3s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .map-container {
+            height: 400px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 2px solid #e1e5e9;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .price-display {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.5rem;
+            margin: 20px 0;
+        }
+        
+        .request-card {
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            transition: all 0.3s;
+        }
+        
+        .request-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .status-pending {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .status-accepted {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status-completed {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .user-type-selector {
+                flex-direction: column;
+            }
+            
+            .user-type-btn {
+                width: 100%;
+            }
+        }
+        
+        .coordinates-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            direction: ltr;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚛 سیستم باربری</h1>
+            <p>سامانه هوشمند حمل و نقل بار</p>
+        </div>
+        
+        <div class="card">
+            <div class="user-type-selector">
+                <button class="user-type-btn active" onclick="setUserType('customer')">
+                    مشتری
+                </button>
+                <button class="user-type-btn" onclick="setUserType('driver')">
+                    راننده
+                </button>
+            </div>
+            
+            <!-- Customer Section -->
+            <div id="customer-section">
+                <div id="phone-form">
+                    <h3>ثبت درخواست بار</h3>
+                    <div class="form-group">
+                        <label>شماره موبایل:</label>
+                        <input type="tel" id="phone-input" placeholder="09123456789" maxlength="11">
+                    </div>
+                    <button class="btn" onclick="sendVerificationCode()">ارسال کد تایید</button>
+                </div>
+                
+                <div id="verification-form" class="hidden">
+                    <h3>تایید شماره موبایل</h3>
+                    <p>کد تایید برای شماره <span id="phone-display"></span> ارسال شد</p>
+                    <div class="form-group">
+                        <label>کد تایید:</label>
+                        <input type="text" id="verification-code" placeholder="1234" maxlength="4">
+                    </div>
+                    <button class="btn" onclick="verifyCode()">تایید کد</button>
+                    <button class="btn" style="background: #6c757d; margin-top: 10px;" onclick="goBack()">بازگشت</button>
+                </div>
+                
+                <div id="map-form" class="hidden">
+                    <h3>انتخاب مبدا و مقصد</h3>
+                    <p>روی نقشه کلیک کنید تا مبدا و مقصد را انتخاب کنید</p>
+                    <div class="map-container">
+                        <div id="map"></div>
+                    </div>
+                    <div class="coordinates-display">
+                        <div>مبدا: <span id="origin-coords">انتخاب نشده</span></div>
+                        <div>مقصد: <span id="destination-coords">انتخاب نشده</span></div>
+                        <div>فاصله: <span id="distance-display">محاسبه نشده</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>توضیحات بار:</label>
+                        <textarea id="cargo-description" placeholder="نوع بار، وزن، ابعاد و سایر توضیحات..."></textarea>
+                    </div>
+                    <div id="price-container" class="hidden">
+                        <div class="price-display">
+                            قیمت پیشنهادی: <span id="calculated-price">0</span> تومان
+                        </div>
+                    </div>
+                    <button class="btn" onclick="submitRequest()" id="submit-btn" disabled>ثبت درخواست</button>
+                </div>
+                
+                <div id="success-message" class="hidden">
+                    <div class="success">
+                        درخواست شما با موفقیت ثبت شد!
+                    </div>
+                    <p>کد پیگیری: <strong id="tracking-code"></strong></p>
+                    <p>لینک اشتراک گذاری برای راننده‌ها:</p>
+                    <input type="text" id="share-link" readonly style="background: #f8f9fa;">
+                    <button class="btn" onclick="copyLink()" style="margin-top: 10px;">کپی لینک</button>
+                    <button class="btn" onclick="resetForm()" style="background: #6c757d; margin-top: 10px;">درخواست جدید</button>
+                </div>
+            </div>
+            
+            <!-- Driver Section -->
+            <div id="driver-section" class="hidden">
+                <h3>پنل راننده</h3>
+                <div class="form-group">
+                    <label>شماره موبایل راننده:</label>
+                    <input type="tel" id="driver-phone" placeholder="09123456789" maxlength="11">
+                </div>
+                <button class="btn" onclick="loginDriver()">ورود</button>
+                
+                <div id="driver-dashboard" class="hidden">
+                    <h4>درخواست‌های موجود</h4>
+                    <div id="requests-list">
+                        <div class="loading">در حال بارگذاری...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let map;
+        let originMarker, destinationMarker;
+        let originCoords = null, destinationCoords = null;
+        let currentPhone = '';
+        let verificationCodeSent = '';
+        let requests = [];
+        let currentUserType = 'customer';
+        
+        // Initialize database
+        let db;
+        initDatabase();
+        
+        async function initDatabase() {
+            try {
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+                });
+                
+                db = new SQL.Database();
+                
+                // Create tables
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS requests (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        phone TEXT NOT NULL,
+                        origin_lat REAL NOT NULL,
+                        origin_lng REAL NOT NULL,
+                        dest_lat REAL NOT NULL,
+                        dest_lng REAL NOT NULL,
+                        distance REAL NOT NULL,
+                        price INTEGER NOT NULL,
+                        description TEXT,
+                        status TEXT DEFAULT 'pending',
+                        driver_phone TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+                
+                // Insert sample data for demo
+                loadSampleData();
+                
+            } catch (error) {
+                console.error('Database initialization failed:', error);
+            }
+        }
+        
+        function loadSampleData() {
+            // Add some sample requests for demo
+            const sampleRequests = [
+                {
+                    phone: '09123456789',
+                    origin_lat: 35.7219,
+                    origin_lng: 51.3347,
+                    dest_lat: 35.6892,
+                    dest_lng: 51.3890,
+                    distance: 8.5,
+                    price: 85000,
+                    description: 'حمل لوازم خانگی - 2 کارتن',
+                    status: 'pending'
+                },
+                {
+                    phone: '09987654321',
+                    origin_lat: 35.6892,
+                    origin_lng: 51.3890,
+                    dest_lat: 35.7219,
+                    dest_lng: 51.3347,
+                    distance: 12.3,
+                    price: 123000,
+                    description: 'حمل کالای تجاری - 5 کارتن',
+                    status: 'accepted',
+                    driver_phone: '09111111111'
+                }
+            ];
+            
+            sampleRequests.forEach(req => {
+                try {
+                    db.run(`
+                        INSERT INTO requests (phone, origin_lat, origin_lng, dest_lat, dest_lng, distance, price, description, status, driver_phone)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [req.phone, req.origin_lat, req.origin_lng, req.dest_lat, req.dest_lng, req.distance, req.price, req.description, req.status, req.driver_phone]);
+                } catch (e) {
+                    // Sample data already exists
+                }
+            });
+        }
+        
+        function setUserType(type) {
+            currentUserType = type;
+            document.querySelectorAll('.user-type-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (type === 'customer') {
+                document.getElementById('customer-section').classList.remove('hidden');
+                document.getElementById('driver-section').classList.add('hidden');
+            } else {
+                document.getElementById('customer-section').classList.add('hidden');
+                document.getElementById('driver-section').classList.remove('hidden');
+                loadDriverRequests();
+            }
+        }
+        
+        function sendVerificationCode() {
+            const phone = document.getElementById('phone-input').value;
+            
+            if (!phone || phone.length !== 11 || !phone.startsWith('09')) {
+                showError('شماره موبایل معتبر وارد کنید');
+                return;
+            }
+            
+            currentPhone = phone;
+            verificationCodeSent = Math.floor(1000 + Math.random() * 9000).toString();
+            
+            // Simulate SMS sending
+            console.log(`SMS Code for ${phone}: ${verificationCodeSent}`);
+            alert(`کد تایید: ${verificationCodeSent} (در محیط واقعی از طریق SMS ارسال می‌شود)`);
+            
+            document.getElementById('phone-display').textContent = phone;
+            document.getElementById('phone-form').classList.add('hidden');
+            document.getElementById('verification-form').classList.remove('hidden');
+        }
+        
+        function verifyCode() {
+            const enteredCode = document.getElementById('verification-code').value;
+            
+            if (enteredCode === verificationCodeSent) {
+                document.getElementById('verification-form').classList.add('hidden');
+                document.getElementById('map-form').classList.remove('hidden');
+                initMap();
+            } else {
+                showError('کد تایید اشتباه است');
+            }
+        }
+        
+        function goBack() {
+            document.getElementById('verification-form').classList.add('hidden');
+            document.getElementById('phone-form').classList.remove('hidden');
+            document.getElementById('verification-code').value = '';
+        }
+        
+        function initMap() {
+            map = L.map('map').setView([35.7219, 51.3347], 11); // Tehran center
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            let clickCount = 0;
+            
+            map.on('click', function(e) {
+                if (clickCount === 0) {
+                    // Set origin
+                    if (originMarker) map.removeLayer(originMarker);
+                    originMarker = L.marker([e.latlng.lat, e.latlng.lng])
+                        .addTo(map)
+                        .bindPopup('مبدا')
+                        .openPopup();
+                    
+                    originCoords = [e.latlng.lat, e.latlng.lng];
+                    document.getElementById('origin-coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    clickCount = 1;
+                    
+                } else if (clickCount === 1) {
+                    // Set destination
+                    if (destinationMarker) map.removeLayer(destinationMarker);
+                    destinationMarker = L.marker([e.latlng.lat, e.latlng.lng])
+                        .addTo(map)
+                        .bindPopup('مقصد')
+                        .openPopup();
+                    
+                    destinationCoords = [e.latlng.lat, e.latlng.lng];
+                    document.getElementById('destination-coords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+                    
+                    calculateDistance();
+                    clickCount = 0; // Reset for next selection
+                }
+            });
+        }
+        
+        function calculateDistance() {
+            if (!originCoords || !destinationCoords) return;
+            
+            const distance = getDistanceFromLatLonInKm(
+                originCoords[0], originCoords[1],
+                destinationCoords[0], destinationCoords[1]
+            );
+            
+            document.getElementById('distance-display').textContent = `${distance.toFixed(2)} کیلومتر`;
+            
+            // Calculate price (10,000 Toman per km)
+            const price = Math.round(distance * 10000);
+            document.getElementById('calculated-price').textContent = price.toLocaleString('fa-IR');
+            
+            document.getElementById('price-container').classList.remove('hidden');
+            document.getElementById('submit-btn').disabled = false;
+        }
+        
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const d = R * c; // Distance in km
+            return d;
+        }
+        
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+        
+        function submitRequest() {
+            if (!originCoords || !destinationCoords) {
+                showError('لطفا مبدا و مقصد را انتخاب کنید');
+                return;
+            }
+            
+            const description = document.getElementById('cargo-description').value;
+            const distance = getDistanceFromLatLonInKm(
+                originCoords[0], originCoords[1],
+                destinationCoords[0], destinationCoords[1]
+            );
+            const price = Math.round(distance * 10000);
+            
+            try {
+                db.run(`
+                    INSERT INTO requests (phone, origin_lat, origin_lng, dest_lat, dest_lng, distance, price, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `, [currentPhone, originCoords[0], originCoords[1], destinationCoords[0], destinationCoords[1], distance, price, description]);
+                
+                const result = db.exec("SELECT last_insert_rowid() as id")[0];
+                const requestId = result.values[0][0];
+                const trackingCode = `BR${requestId.toString().padStart(6, '0')}`;
+                const shareLink = `${window.location.origin}${window.location.pathname}?request=${requestId}`;
+                
+                document.getElementById('tracking-code').textContent = trackingCode;
+                document.getElementById('share-link').value = shareLink;
+                
+                document.getElementById('map-form').classList.add('hidden');
+                document.getElementById('success-message').classList.remove('hidden');
+                
+            } catch (error) {
+                showError('خطا در ثبت درخواست');
+                console.error(error);
+            }
+        }
+        
+        function copyLink() {
+            const linkInput = document.getElementById('share-link');
+            linkInput.select();
+            document.execCommand('copy');
+            showSuccess('لینک کپی شد');
+        }
+        
+        function resetForm() {
+            document.getElementById('success-message').classList.add('hidden');
+            document.getElementById('phone-form').classList.remove('hidden');
+            document.getElementById('phone-input').value = '';
+            document.getElementById('verification-code').value = '';
+            document.getElementById('cargo-description').value = '';
+            
+            originCoords = null;
+            destinationCoords = null;
+            
+            if (originMarker) map.removeLayer(originMarker);
+            if (destinationMarker) map.removeLayer(destinationMarker);
+            
+            document.getElementById('origin-coords').textContent = 'انتخاب نشده';
+            document.getElementById('destination-coords').textContent = 'انتخاب نشده';
+            document.getElementById('distance-display').textContent = 'محاسبه نشده';
+            document.getElementById('price-container').classList.add('hidden');
+            document.getElementById('submit-btn').disabled = true;
+        }
+        
+        function loginDriver() {
+            const driverPhone = document.getElementById('driver-phone').value;
+            
+            if (!driverPhone || driverPhone.length !== 11 || !driverPhone.startsWith('09')) {
+                showError('شماره موبایل معتبر وارد کنید');
+                return;
+            }
+            
+            document.getElementById('driver-dashboard').classList.remove('hidden');
+            loadDriverRequests();
+        }
+        
+        function loadDriverRequests() {
+            try {
+                const result = db.exec("SELECT * FROM requests WHERE status = 'pending' ORDER BY created_at DESC");
+                const requestsList = document.getElementById('requests-list');
+                
+                if (!result.length || !result[0].values.length) {
+                    requestsList.innerHTML = '<p>درخواست جدیدی موجود نیست</p>';
+                    return;
+                }
+                
+                const columns = result[0].columns;
+                const requests = result[0].values.map(row => {
+                    const obj = {};
+                    columns.forEach((col, index) => {
+                        obj[col] = row[index];
+                    });
+                    return obj;
+                });
+                
+                requestsList.innerHTML = requests.map(req => `
+                    <div class="request-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span class="status-badge status-${req.status}">${getStatusText(req.status)}</span>
+                            <strong>کد: BR${req.id.toString().padStart(6, '0')}</strong>
+                        </div>
+                        <p><strong>شماره تماس:</strong> ${req.phone}</p>
+                        <p><strong>فاصله:</strong> ${req.distance.toFixed(2)} کیلومتر</p>
+                        <p><strong>قیمت:</strong> ${parseInt(req.price).toLocaleString('fa-IR')} تومان</p>
+                        <p><strong>توضیحات:</strong> ${req.description || 'بدون توضیحات'}</p>
+                        <button class="btn" onclick="acceptRequest(${req.id})" style="margin-top: 10px;">
+                            پذیرش درخواست
+                        </button>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                document.getElementById('requests-list').innerHTML = '<p>خطا در بارگذاری درخواست‌ها</p>';
+            }
+        }
+        
+        function acceptRequest(requestId) {
+            const driverPhone = document.getElementById('driver-phone').value;
+            
+            try {
+                db.run("UPDATE requests SET status = 'accepted', driver_phone = ? WHERE id = ?", [driverPhone, requestId]);
+                showSuccess('درخواست با موفقیت پذیرش شد');
+                loadDriverRequests();
+            } catch (error) {
+                showError('خطا در پذیرش درخواست');
+                console.error(error);
+            }
+        }
+        
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'در انتظار',
+                'accepted': 'پذیرش شده',
+                'completed': 'تکمیل شده'
+            };
+            return statusMap[status] || status;
+        }
+        
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.card').insertBefore(errorDiv, document.querySelector('.card').firstChild);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            document.querySelector('.card').insertBefore(successDiv, document.querySelector('.card').firstChild);
+            setTimeout(() => successDiv.remove(), 5000);
+        }
+        
+        // Check for direct request link
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const requestId = urlParams.get('request');
+            if (requestId) {
+                setUserType('driver');
+                document.getElementById('driver-phone').value = '09100000000'; // Default for demo
+                loginDriver();
+            }
+        };
+    </script>
+</body>
+</html>
