@@ -74,7 +74,7 @@ export default function OTPLogsPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/admin" className="flex items-center gap-2">
             <Truck className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">بارچی - لاگ OTP</h1>
+            <h1 className="text-2xl font-bold text-gray-900">بسبار - لاگ OTP</h1>
           </Link>
           <Link href="/admin">
             <Button variant="outline">بازگشت به پنل مدیریت</Button>

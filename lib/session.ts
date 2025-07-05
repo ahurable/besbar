@@ -14,6 +14,11 @@ export function generateSessionToken(): string {
   return crypto.randomBytes(32).toString("hex")
 }
 
+// Format date for MySQL
+function formatDateForMySQL(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ")
+}
+
 // Create a new session for user
 export async function createSession(phoneNumber: string): Promise<string> {
   const sessionToken = generateSessionToken()
@@ -25,8 +30,10 @@ export async function createSession(phoneNumber: string): Promise<string> {
   let userId: number
   if (userResult.rows.length === 0) {
     // Create new user
-    const newUserResult = await query("INSERT INTO users (phone_number) VALUES ($1) RETURNING id", [phoneNumber])
-    userId = newUserResult.rows[0].id
+    const newUserResult = await query("INSERT INTO users (phone_number) VALUES ($1)", [phoneNumber])
+    // For MySQL, get the inserted ID differently
+    const insertedUserResult = await query("SELECT LAST_INSERT_ID() as id")
+    userId = insertedUserResult.rows[0].id
   } else {
     userId = userResult.rows[0].id
   }
@@ -38,7 +45,7 @@ export async function createSession(phoneNumber: string): Promise<string> {
   await query(
     `INSERT INTO user_sessions (user_id, phone_number, session_token, expires_at) 
      VALUES ($1, $2, $3, $4)`,
-    [userId, phoneNumber, sessionToken, expiresAt.toISOString()],
+    [userId, phoneNumber, sessionToken, formatDateForMySQL(expiresAt)],
   )
 
   console.log(`✅ Session created for ${phoneNumber}: ${sessionToken}`)
@@ -52,8 +59,8 @@ export async function getSession(sessionToken: string): Promise<SessionUser | nu
       `SELECT s.id, s.user_id, s.phone_number, s.session_token, s.expires_at, u.id as user_id
        FROM user_sessions s
        JOIN users u ON s.user_id = u.id
-       WHERE s.session_token = $1 AND s.expires_at > $2`,
-      [sessionToken, new Date().toISOString()],
+       WHERE s.session_token = $1 AND s.expires_at > NOW()`,
+      [sessionToken],
     )
 
     if (result.rows.length === 0) {
@@ -102,5 +109,5 @@ export async function deleteSession(sessionToken: string): Promise<void> {
 
 // Clean up expired sessions
 export async function cleanupExpiredSessions(): Promise<void> {
-  await query("DELETE FROM user_sessions WHERE expires_at < $1", [new Date().toISOString()])
+  await query("DELETE FROM user_sessions WHERE expires_at < NOW()")
 }

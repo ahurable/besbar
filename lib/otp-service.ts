@@ -18,7 +18,7 @@ export async function sendOTPToPhone(phoneNumber: string): Promise<{ success: bo
     storeOTP(phoneNumber, otpCode)
 
     // Send SMS (logs to terminal)
-    const message = `کد تایید بارچی: ${otpCode}\nاین کد تا 5 دقیقه معتبر است.\nبارچی - سرویس حمل و نقل`
+    const message = `کد تایید بسبار: ${otpCode}\nاین کد تا 5 دقیقه معتبر است.\nبسبار - سرویس حمل و نقل`
     await sendSMS(phoneNumber, message)
 
     // Log successful send

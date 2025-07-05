@@ -1,4 +1,4 @@
-import { Pool } from "pg"
+import mysql from "mysql2/promise"
 import Database from "better-sqlite3"
 import path from "path"
 
@@ -8,23 +8,35 @@ interface DatabaseAdapter {
   close(): Promise<void>
 }
 
-class PostgreSQLAdapter implements DatabaseAdapter {
-  private pool: Pool
+class MySQLAdapter implements DatabaseAdapter {
+  private pool: mysql.Pool
 
   constructor() {
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    this.pool = mysql.createPool({
+      host: process.env.DB_HOST || "localhost",
+      port: Number.parseInt(process.env.DB_PORT || "3306"),
+      user: process.env.DB_USER || "root",
+      password: process.env.DB_PASSWORD || "",
+      database: process.env.DB_NAME || "freight_db",
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      timezone: "+00:00",
     })
   }
 
   async query(text: string, params?: any[]) {
-    const client = await this.pool.connect()
+    // Convert PostgreSQL-style parameters ($1, $2) to MySQL-style (?)
+    const mysqlQuery = text.replace(/\$(\d+)/g, "?")
+
     try {
-      const result = await client.query(text, params)
-      return { rows: result.rows }
-    } finally {
-      client.release()
+      const [rows] = await this.pool.execute(mysqlQuery, params)
+      return { rows: Array.isArray(rows) ? rows : [rows] }
+    } catch (error) {
+      console.error("MySQL query error:", error)
+      console.error("Query:", mysqlQuery)
+      console.error("Params:", params)
+      throw error
     }
   }
 
@@ -46,8 +58,10 @@ class SQLiteAdapter implements DatabaseAdapter {
     const sqliteQuery = text
       .replace(/\$(\d+)/g, "?") // Replace $1, $2, etc. with ?
       .replace(/SERIAL PRIMARY KEY/g, "INTEGER PRIMARY KEY AUTOINCREMENT")
+      .replace(/AUTO_INCREMENT PRIMARY KEY/g, "INTEGER PRIMARY KEY AUTOINCREMENT")
       .replace(/TIMESTAMP WITH TIME ZONE/g, "DATETIME")
-      .replace(/NOW$$$$/g, "CURRENT_TIMESTAMP")
+      .replace(/TIMESTAMP/g, "DATETIME")
+      .replace(/NOW$$$$/g, "datetime('now')")
       .replace(/CURRENT_TIMESTAMP/g, "datetime('now')")
 
     try {
@@ -89,9 +103,9 @@ class SQLiteAdapter implements DatabaseAdapter {
 
 // Create database instance based on environment
 const createDatabase = (): DatabaseAdapter => {
-  if (process.env.DATABASE_URL && process.env.NODE_ENV === "production") {
-    console.log("🐘 Using PostgreSQL database")
-    return new PostgreSQLAdapter()
+  if (process.env.DB_HOST || process.env.NODE_ENV === "production") {
+    console.log("🐬 Using MySQL database")
+    return new MySQLAdapter()
   } else {
     console.log("🗃️ Using SQLite database for development")
     return new SQLiteAdapter()
@@ -108,17 +122,17 @@ export async function initializeDatabase() {
     // Create users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         phone_number VARCHAR(15) UNIQUE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
     // Create freight_requests table
     await db.query(`
       CREATE TABLE IF NOT EXISTS freight_requests (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT,
         phone_number VARCHAR(15) NOT NULL,
         source_address TEXT NOT NULL,
         source_lat DECIMAL(10, 8) NOT NULL,
@@ -130,28 +144,29 @@ export async function initializeDatabase() {
         weight_kg DECIMAL(8, 2) NOT NULL,
         calculated_price DECIMAL(10, 2) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `)
 
     // Create admin_users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS admin_users (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
     // Create otp_logs table
     await db.query(`
       CREATE TABLE IF NOT EXISTS otp_logs (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         phone_number VARCHAR(15) NOT NULL,
         otp_code VARCHAR(10) NOT NULL,
-        sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        verified_at TIMESTAMP WITH TIME ZONE,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        verified_at TIMESTAMP NULL,
         status VARCHAR(20) DEFAULT 'sent'
       )
     `)
@@ -159,12 +174,13 @@ export async function initializeDatabase() {
     // Create user_sessions table for session management
     await db.query(`
       CREATE TABLE IF NOT EXISTS user_sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT,
         phone_number VARCHAR(15) NOT NULL,
         session_token VARCHAR(255) UNIQUE NOT NULL,
-        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `)
 

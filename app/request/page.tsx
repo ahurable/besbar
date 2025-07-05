@@ -365,7 +365,7 @@ export default function RequestPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
             <Truck className="h-8 w-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">بارچی</h1>
+            <h1 className="text-2xl font-bold text-gray-900">بسبار</h1>
           </Link>
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-semibold">درخواست حمل بار</h2>
