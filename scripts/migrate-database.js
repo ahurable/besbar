@@ -1,4 +1,4 @@
-const { initializeDatabase } = require("./database-migration")
+const { initializeDatabase } = require("./database")
 
 async function runMigration() {
   try {
