@@ -1,4 +1,4 @@
-import db from "./database"
+import { db } from "./database"
 import { generateOTP, sendSMS } from "./otp"
 
 export async function sendOTPToPhone(phoneNumber: string): Promise<{ success: boolean; message: string }> {
