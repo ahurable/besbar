@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
     "dev": "next dev",
+    "build": "npm run db:migrate && next build",
+    "start": "next start",
     "lint": "next lint",
-    "start": "next start"
+    "setup": "node scripts/setup-dev.js",
+    "db:init": "node scripts/migrate-database.js",
+    "db:migrate": "node scripts/migrate-database.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
