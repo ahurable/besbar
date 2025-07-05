@@ -7,11 +7,12 @@ export async function sendOTPToPhone(phoneNumber: string): Promise<{ success: bo
     const otpCode = generateOTP()
 
     // Log OTP to database
-    const logStmt = db.prepare(`
+    await db.query(`
       INSERT INTO otp_logs (phone_number, otp_code, status) 
-      VALUES (?, ?, 'sent')
-    `)
-    logStmt.run(phoneNumber, otpCode)
+      VALUES ($1, $2, 'sent')
+    `, [phoneNumber, otpCode])
+    
+    // logStmt.run(phoneNumber, otpCode)
 
     // Store in memory for verification
     const { storeOTP } = await import("./otp")
@@ -49,12 +50,11 @@ export async function verifyOTPCode(
 
     if (isValid) {
       // Update database log
-      const updateStmt = db.prepare(`
+      await db.query(`
         UPDATE otp_logs 
         SET verified_at = CURRENT_TIMESTAMP, status = 'verified'
         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'
-      `)
-      updateStmt.run(phoneNumber, otpCode)
+      `, [phoneNumber, otpCode])
 
       console.log(`✅ OTP Verified Successfully:`)
       console.log(`   Phone: ${phoneNumber}`)
@@ -67,12 +67,12 @@ export async function verifyOTPCode(
       }
     } else {
       // Log failed attempt
-      const updateStmt = db.prepare(`
+      await db.query(`
         UPDATE otp_logs 
         SET status = 'failed'
         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'
-      `)
-      updateStmt.run(phoneNumber, otpCode)
+      `, [phoneNumber, otpCode])
+      
 
       console.log(`❌ OTP Verification Failed:`)
       console.log(`   Phone: ${phoneNumber}`)

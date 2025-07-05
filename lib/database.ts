@@ -16,7 +16,7 @@ class MySQLAdapter implements DatabaseAdapter {
       host: process.env.DB_HOST || "localhost",
       port: Number.parseInt(process.env.DB_PORT || "3306"),
       user: process.env.DB_USER || "root",
-      password: process.env.DB_PASSWORD || "",
+      // password: process.env.DB_PASSWORD || "",
       database: process.env.DB_NAME || "freight_db",
       waitForConnections: true,
       connectionLimit: 10,
@@ -103,7 +103,8 @@ class SQLiteAdapter implements DatabaseAdapter {
 
 // Create database instance based on environment
 const createDatabase = (): DatabaseAdapter => {
-  if (process.env.DB_HOST || process.env.NODE_ENV === "production") {
+  // console.log(`The Db Host is : ${process.env.MODE}`)
+  if (process.env.DB_HOST || process.env.MODE === "production") {
     console.log("🐬 Using MySQL database")
     return new MySQLAdapter()
   } else {
@@ -122,7 +123,7 @@ export async function initializeDatabase() {
     // Create users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INT PRIMARY KEY AUTO_INCREMENT,
         phone_number VARCHAR(15) UNIQUE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
