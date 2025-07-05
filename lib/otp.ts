@@ -85,6 +85,38 @@ export async function verifyOTP(phoneNumber: string, code: string): Promise<bool
 
 export function sendSMS(phoneNumber: string, message: string): Promise<boolean> {
   // Log to terminal (simulating SMS gateway)
+  
+
+      var data = JSON.stringify({
+          "mobile": "Your Mobile",
+          "templateId": "158488",
+          "parameters": [
+            {name: 'code' , value: message},
+          ],
+        });
+
+      var config = {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain',
+          'x-api-key': 'YOURAPIKEY'
+        },
+        data : data
+      };
+
+    fetch(
+        'https://api.sms.ir/v1/send/verify',
+        config
+      )
+      .then(function (response) {
+        console.log(response.json());
+      })
+      .catch(function (error) {
+        console.log(error);
+      });
+
+    
   console.log("=".repeat(50))
   console.log("📱 SMS GATEWAY - SENDING MESSAGE")
   console.log("=".repeat(50))
