@@ -18,6 +18,7 @@ class MySQLAdapter implements DatabaseAdapter {
       user: process.env.DB_USER || "root",
       // password: process.env.DB_PASSWORD || "",
       database: process.env.DB_NAME || "freight_db",
+      password: process.env.DB_PASSWORD,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
