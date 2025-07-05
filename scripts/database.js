@@ -137,17 +137,17 @@ async function initializeDatabase() {
     // Create users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         phone_number VARCHAR(15) UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `)
     console.log("✅ Users table ready")
 
     // Create freight_requests table
     await db.query(`
       CREATE TABLE IF NOT EXISTS freight_requests (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INT,
         phone_number VARCHAR(15) NOT NULL,
         source_address TEXT NOT NULL,
@@ -169,7 +169,7 @@ async function initializeDatabase() {
     // Create admin_users table
     await db.query(`
       CREATE TABLE IF NOT EXISTS admin_users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER  PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -180,7 +180,7 @@ async function initializeDatabase() {
     // Create otp_logs table
     await db.query(`
       CREATE TABLE IF NOT EXISTS otp_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         phone_number VARCHAR(15) NOT NULL,
         otp_code VARCHAR(10) NOT NULL,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -193,7 +193,7 @@ async function initializeDatabase() {
     // Create user_sessions table for session management
     await db.query(`
       CREATE TABLE IF NOT EXISTS user_sessions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INTEGER  PRIMARY KEY AUTOINCREMENT,
         user_id INT,
         phone_number VARCHAR(15) NOT NULL,
         session_token VARCHAR(255) UNIQUE NOT NULL,
