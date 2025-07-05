@@ -6,7 +6,7 @@ async function runMigration() {
     console.log("🚀 Starting database migration...")
 
     // Dynamically import the database module
-    const { initializeDatabase } = await import(path.join(process.cwd(), "lib", "database.js"))
+    const { initializeDatabase } = await import(path.join(process.cwd(), "lib", "database.ts"))
 
     // Run database initialization
     await initializeDatabase()
