@@ -1,135 +1,184 @@
-import { query } from "./database"
+import { query } from "./database";
 
-export function generateOTP(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString()
+// Type definitions
+interface OtpRecord {
+  otp_code: string;
+  sent_at: string;  // MySQL returns string datetime by default
+  status?: 'sent' | 'verified' | 'expired' | 'failed';
 }
 
+const OTP_EXPIRATION_MINUTES = 5;
+const OTP_LENGTH = 4;
+const SMS_API_ENABLED = process.env.SMS_API_KEY !== undefined;
+
+export function generateOTP(): string {
+  return Math.floor(1000 + Math.random() * 9000).toString().padStart(OTP_LENGTH, '0');
+}
+
+// Since you don't have getConnection, remove transaction logic here or implement a new way.
+// For now, simplify storeOTP to a single insert (you may add transaction support later).
 export async function storeOTP(phoneNumber: string, code: string): Promise<void> {
-  // Delete any existing OTP for this phone number
-  await query("DELETE FROM otp_logs WHERE phone_number = $1 AND status = 'sent'", [phoneNumber])
+  if (!phoneNumber?.trim() || !code?.trim()) {
+    throw new Error('Phone number and OTP code are required');
+  }
+
+  const cleanedPhone = phoneNumber.trim();
+  const cleanedCode = code.trim();
+
+  // Delete old OTPs
+  await query(
+    "DELETE FROM otp_logs WHERE phone_number = ? AND status = 'sent'",
+    [cleanedPhone]
+  );
 
   // Insert new OTP
   await query(
-    `INSERT INTO otp_logs (phone_number, otp_code, status) 
-     VALUES ($1, $2, 'sent')`,
-    [phoneNumber, code],
-  )
+    `INSERT INTO otp_logs (phone_number, otp_code, status, sent_at) 
+     VALUES (?, ?, 'sent', NOW())`,
+    [cleanedPhone, cleanedCode]
+  );
 
-  console.log(`🔐 OTP Stored in database: ${phoneNumber} -> ${code} (expires in 5 min)`)
+  // Verify insertion
+  const verificationResult = await query(
+    "SELECT COUNT(*) as count FROM otp_logs WHERE phone_number = ? AND status = 'sent'",
+    [cleanedPhone]
+  );
+
+  const count = verificationResult.rows[0]?.count || 0;
+  if (count === 0) {
+    throw new Error("Failed to verify OTP storage");
+  }
+
+  console.log(`🔐 OTP Stored: ${cleanedPhone} -> ${cleanedCode} at ${new Date().toISOString()}`);
 }
 
 export async function verifyOTP(phoneNumber: string, code: string): Promise<boolean> {
-  console.log(`🔍 Verifying OTP for ${phoneNumber}:`)
-  console.log(`   Input code: ${code}`)
-
-  // Get the most recent OTP for this phone number
-  const result = await query(
-    `SELECT otp_code, sent_at FROM otp_logs 
-     WHERE phone_number = $1 AND status = 'sent' 
-     ORDER BY sent_at DESC 
-     LIMIT 1`,
-    [phoneNumber],
-  )
-
-  if (result.rows.length === 0) {
-    console.log(`❌ No OTP found for ${phoneNumber}`)
-    return false
+  if (!phoneNumber?.trim() || !code?.trim()) {
+    console.log('❌ Phone number and OTP code are required');
+    return false;
   }
 
-  const stored = result.rows[0]
-  console.log(`   Stored code: ${stored.otp_code}`)
+  const cleanedPhone = phoneNumber.trim();
+  const cleanedCode = code.trim();
 
-  // Check if OTP is expired (5 minutes)
-  const sentTime = new Date(stored.sent_at).getTime()
-  const now = Date.now()
-  const fiveMinutes = 5 * 60 * 1000
+  try {
+    console.log(`🔍 Verifying OTP for ${cleanedPhone}`);
+    console.log(`   Input code: ${cleanedCode}`);
 
-  if (now - sentTime > fiveMinutes) {
-    console.log(`❌ OTP expired for ${phoneNumber}`)
-    // Mark as expired
-    await query(
-      `UPDATE otp_logs 
-       SET status = 'expired' 
-       WHERE phone_number = $1 AND otp_code = $2 AND status = 'sent'`,
-      [phoneNumber, stored.otp_code],
-    )
-    return false
+    // Query latest OTP record from database
+    const result = await query(
+      `SELECT otp_code, sent_at FROM otp_logs 
+       WHERE phone_number = ? AND status = 'sent' 
+       ORDER BY sent_at DESC 
+       LIMIT 1`,
+      [cleanedPhone]
+    );
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.log(`❌ No OTP found for ${cleanedPhone}`);
+      return false;
+    }
+
+    const stored: OtpRecord = result.rows[0];
+
+    if (!stored.otp_code || !stored.sent_at) {
+      console.log(`❌ Invalid OTP record format for ${cleanedPhone}`);
+      return false;
+    }
+
+    console.log(`   Stored code: ${stored.otp_code}`);
+
+    const expirationTime = OTP_EXPIRATION_MINUTES * 60 * 1000;
+    const isExpired = Date.now() - new Date(stored.sent_at).getTime() > expirationTime;
+
+    if (isExpired) {
+      console.log(`❌ OTP expired for ${cleanedPhone}`);
+      await markOtpStatus(cleanedPhone, stored.otp_code, 'expired');
+      return false;
+    }
+
+    if (cleanedCode !== stored.otp_code.trim()) {
+      console.log(`❌ OTP mismatch for ${cleanedPhone}`);
+      await markOtpStatus(cleanedPhone, stored.otp_code, 'failed');
+      return false;
+    }
+
+    console.log(`✅ OTP verified successfully for ${cleanedPhone}`);
+    await markOtpStatus(cleanedPhone, stored.otp_code, 'verified');
+    return true;
+  } catch (error) {
+    console.error('OTP verification failed:', error instanceof Error ? error.message : error);
+    return false;
   }
-
-  // Trim whitespace and compare as strings
-  const inputCode = code.toString().trim()
-  const storedCode = stored.otp_code.toString().trim()
-
-  if (inputCode === storedCode) {
-    console.log(`✅ OTP verified successfully for ${phoneNumber}`)
-    // Mark as verified
-    await query(
-      `UPDATE otp_logs 
-       SET status = 'verified', verified_at = NOW() 
-       WHERE phone_number = $1 AND otp_code = $2 AND status = 'sent'`,
-      [phoneNumber, stored.otp_code],
-    )
-    return true
-  }
-
-  console.log(`❌ OTP mismatch for ${phoneNumber}: '${inputCode}' !== '${storedCode}'`)
-  // Mark as failed
-  await query(
-    `UPDATE otp_logs 
-     SET status = 'failed' 
-     WHERE phone_number = $1 AND otp_code = $2 AND status = 'sent'`,
-    [phoneNumber, stored.otp_code],
-  )
-  return false
 }
 
-export function sendSMS(phoneNumber: string, message: string): Promise<boolean> {
-  // Log to terminal (simulating SMS gateway)
-  
+async function markOtpStatus(phoneNumber: string, code: string, status: OtpRecord['status']): Promise<void> {
+  try {
+    const queryText = status === 'verified'
+      ? `UPDATE otp_logs SET status = ?, verified_at = NOW() 
+         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'`
+      : `UPDATE otp_logs SET status = ? 
+         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'`;
 
-      var data = JSON.stringify({
-          "mobile": "Your Mobile",
-          "templateId": "158488",
-          "parameters": [
-            {name: 'code' , value: message},
-          ],
-        });
+    await query(queryText, [status, phoneNumber, code]);
+  } catch (error) {
+    console.error(`Error updating OTP status to ${status}:`, error instanceof Error ? error.message : error);
+  }
+}
 
-      var config = {
-        method: 'post',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-          'x-api-key': 'YOURAPIKEY'
-        },
-        data : data
-      };
+export async function sendSMS(phoneNumber: string, message: string): Promise<boolean> {
+  if (!phoneNumber?.trim() || !message?.trim()) {
+    console.error('❌ Phone number and message are required');
+    return false;
+  }
 
-    fetch(
-        'https://api.sms.ir/v1/send/verify',
-        config
-      )
-      .then(function (response) {
-        console.log(response.json());
-      })
-      .catch(function (error) {
-        console.log(error);
-      });
+  const cleanedPhone = phoneNumber.trim();
+  const cleanedMessage = message.trim();
 
-    
-  console.log("=".repeat(50))
-  console.log("📱 SMS GATEWAY - SENDING MESSAGE")
-  console.log("=".repeat(50))
-  console.log(`📞 Phone Number: ${phoneNumber}`)
-  console.log(`💬 Message: ${message}`)
-  console.log(`⏰ Timestamp: ${new Date().toLocaleString("fa-IR")}`)
-  console.log("=".repeat(50))
+  logSmsRequest(cleanedPhone, cleanedMessage);
 
-  // Simulate network delay
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log(`✅ SMS sent successfully to ${phoneNumber}`)
-      resolve(true)
-    }, 1000)
-  })
+  if (!SMS_API_ENABLED) {
+    console.log('ℹ️ SMS API is disabled - running in development mode');
+    return true;
+  }
+
+  try {
+    const smsApiKey = process.env.SMS_API_KEY;
+    if (!smsApiKey) throw new Error('SMS API key is not configured');
+
+    const response = await fetch('https://api.sms.ir/v1/send/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain',
+        'x-api-key': smsApiKey
+      },
+      body: JSON.stringify({
+        mobile: cleanedPhone,
+        templateId: "158488",
+        parameters: [{ name: 'code', value: cleanedMessage }],
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result.message || `SMS API responded with status ${response.status}`);
+
+    console.log('SMS API response:', result);
+    console.log(`✅ SMS sent successfully to ${cleanedPhone}`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send SMS:', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+function logSmsRequest(phoneNumber: string, message: string): void {
+  console.log("=".repeat(50));
+  console.log("📱 SMS GATEWAY - SENDING MESSAGE");
+  console.log("=".repeat(50));
+  console.log(`📞 Phone Number: ${phoneNumber}`);
+  console.log(`💬 Message: ${message}`);
+  console.log(`⏰ Timestamp: ${new Date().toLocaleString("fa-IR")}`);
+  console.log("=".repeat(50));
 }

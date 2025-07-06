@@ -1,42 +1,31 @@
-import { db } from "./database"
-import { generateOTP, sendSMS } from "./otp"
+import { db } from "./database";
+import { generateOTP, sendSMS, storeOTP, verifyOTP } from "./otp";
 
 export async function sendOTPToPhone(phoneNumber: string): Promise<{ success: boolean; message: string }> {
   try {
-    // Generate OTP
-    const otpCode = generateOTP()
+    const otpCode = generateOTP();
 
-    // Log OTP to database
-    await db.query(`
-      INSERT INTO otp_logs (phone_number, otp_code, status) 
-      VALUES ($1, $2, 'sent')
-    `, [phoneNumber, otpCode])
-    
-    // logStmt.run(phoneNumber, otpCode)
-
-    // Store in memory for verification
-    const { storeOTP } = await import("./otp")
-    storeOTP(phoneNumber, otpCode)
+    // Store OTP in DB with storeOTP (already deletes old OTPs)
+    await storeOTP(phoneNumber, otpCode);
 
     // Send SMS (logs to terminal)
-    await sendSMS(phoneNumber, otpCode)
+    await sendSMS(phoneNumber, otpCode);
 
-    // Log successful send
-    console.log(`🚀 OTP Generated and Logged:`)
-    console.log(`   Phone: ${phoneNumber}`)
-    console.log(`   Code: ${otpCode}`)
-    console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`)
+    console.log(`🚀 OTP Generated and Logged:`);
+    console.log(`   Phone: ${phoneNumber}`);
+    console.log(`   Code: ${otpCode}`);
+    console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`);
 
     return {
       success: true,
       message: "کد تایید با موفقیت ارسال شد",
-    }
+    };
   } catch (error) {
-    console.error("❌ Error in OTP service:", error)
+    console.error("❌ Error in OTP service:", error instanceof Error ? error.message : error);
     return {
       success: false,
       message: "خطا در ارسال کد تایید",
-    }
+    };
   }
 }
 
@@ -45,50 +34,50 @@ export async function verifyOTPCode(
   otpCode: string,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const { verifyOTP } = await import("./otp")
-    const isValid = verifyOTP(phoneNumber, otpCode)
+    const isValid = await verifyOTP(phoneNumber, otpCode);
 
     if (isValid) {
-      // Update database log
-      await db.query(`
-        UPDATE otp_logs 
-        SET verified_at = CURRENT_TIMESTAMP, status = 'verified'
-        WHERE phone_number = ? AND otp_code = ? AND status = 'sent'
-      `, [phoneNumber, otpCode])
+      // Update database log (already done inside verifyOTP markOtpStatus, but safe to update here as well)
+      await db.query(
+        `UPDATE otp_logs 
+         SET verified_at = CURRENT_TIMESTAMP, status = 'verified'
+         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'`,
+        [phoneNumber, otpCode]
+      );
 
-      console.log(`✅ OTP Verified Successfully:`)
-      console.log(`   Phone: ${phoneNumber}`)
-      console.log(`   Code: ${otpCode}`)
-      console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`)
+      console.log(`✅ OTP Verified Successfully:`);
+      console.log(`   Phone: ${phoneNumber}`);
+      console.log(`   Code: ${otpCode}`);
+      console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`);
 
       return {
         success: true,
         message: "کد تایید با موفقیت تایید شد",
-      }
+      };
     } else {
-      // Log failed attempt
-      await db.query(`
-        UPDATE otp_logs 
-        SET status = 'failed'
-        WHERE phone_number = ? AND otp_code = ? AND status = 'sent'
-      `, [phoneNumber, otpCode])
-      
+      // Mark as failed if not already done
+      await db.query(
+        `UPDATE otp_logs 
+         SET status = 'failed'
+         WHERE phone_number = ? AND otp_code = ? AND status = 'sent'`,
+        [phoneNumber, otpCode]
+      );
 
-      console.log(`❌ OTP Verification Failed:`)
-      console.log(`   Phone: ${phoneNumber}`)
-      console.log(`   Code: ${otpCode}`)
-      console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`)
+      console.log(`❌ OTP Verification Failed:`);
+      console.log(`   Phone: ${phoneNumber}`);
+      console.log(`   Code: ${otpCode}`);
+      console.log(`   Time: ${new Date().toLocaleString("fa-IR")}`);
 
       return {
         success: false,
         message: "کد تایید اشتباه یا منقضی شده است",
-      }
+      };
     }
   } catch (error) {
-    console.error("❌ Error in OTP verification:", error)
+    console.error("❌ Error in OTP verification:", error instanceof Error ? error.message : error);
     return {
       success: false,
       message: "خطا در تایید کد",
-    }
+    };
   }
 }

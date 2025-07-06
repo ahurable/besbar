@@ -34,6 +34,7 @@ export default function AdminPage() {
       const response = await fetch("/api/freight-requests")
       if (response.ok) {
         const data = await response.json()
+        console.log(data)
         setRequests(data)
       }
     } catch (error) {
@@ -224,7 +225,7 @@ export default function AdminPage() {
                         {request.source_address} → {request.destination_address}
                       </div>
                     </TableCell>
-                    <TableCell>{request.distance_km.toFixed(1)} کم</TableCell>
+                    <TableCell>{request.distance_km} کم</TableCell>
                     <TableCell>{request.weight_kg} کگ</TableCell>
                     <TableCell>{request.calculated_price.toLocaleString()} ت</TableCell>
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
@@ -301,7 +302,7 @@ export default function AdminPage() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div>
                     <Label>مسافت</Label>
-                    <p className="mt-1 font-semibold">{selectedRequest.distance_km.toFixed(1)} کیلومتر</p>
+                    <p className="mt-1 font-semibold">{selectedRequest.distance_km} کیلومتر</p>
                   </div>
                   <div>
                     <Label>وزن</Label>
