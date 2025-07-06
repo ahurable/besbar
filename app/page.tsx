@@ -27,6 +27,7 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 text-center">
         <h2 className="text-4xl font-bold text-gray-900 mb-6">حمل و نقل بار با بهترین قیمت</h2>
+        <h1>آژانس هوشمند باربری بسبار</h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
           با سرویس آنلاین ما، بارتان را با کمترین هزینه و بیشترین سرعت به مقصد برسانید
         </p>
@@ -153,7 +154,7 @@ export default function HomePage() {
         <h3 className="text-3xl font-bold mb-8">تماس با ما</h3>
         <div className="flex justify-center items-center gap-2 text-xl">
           <Phone className="h-6 w-6 text-blue-600" />
-          <span className="ltr">021-12345678</span>
+          <span className="ltr">0990 339 2645</span>
         </div>
       </section>
 
